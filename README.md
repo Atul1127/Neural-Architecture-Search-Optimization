@@ -1,1 +1,2 @@
-# Neural-Architecture-Search-Optimization
+# Neural_Architecture_Search
+This repo contain the code of Neural Architecture Search which i have implemented from scratch in pytorch. I have used RNN model for searching the best suitable architecture for a cnn model which is used to make a classifer which classify our standard mnist dataset. The heart of this model is the RL reinforce algo, which help in the learning of the parameters of our RNN model so that it predict the best architecture for our cnn model by using reward and punishment strategy.
