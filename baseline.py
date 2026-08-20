@@ -10,17 +10,38 @@ from src.trainer import get_cifar10_loaders
 
 def main():
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "cpu"
+    )
 
-    print("Device:", device)
+    print("=" * 60)
+    print("RANDOM SEARCH BASELINE")
+    print("=" * 60)
 
-    train_loader, test_loader = get_cifar10_loaders(
+    print(f"Device: {device}")
+
+    if torch.cuda.is_available():
+        print(
+            f"GPU: {torch.cuda.get_device_name(0)}"
+        )
+
+    print("\nLoading CIFAR-10...")
+
+    (
+        train_loader,
+        validation_loader,
+        test_loader,
+    ) = get_cifar10_loaders(
         batch_size=128
     )
 
+    print("CIFAR-10 loaded.")
+
     nas = NeuralArchitectureSearch(
-        train_loader,
-        test_loader,
+        train_loader=train_loader,
+        validation_loader=validation_loader,
         device=device,
     )
 
@@ -31,22 +52,32 @@ def main():
         )
     )
 
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 60)
     print("RANDOM SEARCH RESULTS")
-    print("=" * 50)
+    print("=" * 60)
 
     print("\nBest Architecture:")
-    print(best_architecture)
 
-    print(f"\nBest Accuracy: {best_accuracy:.2f}%")
+    for key, value in best_architecture.items():
+        print(f"  {key}: {value}")
+
+    print(
+        f"\nBest Validation Accuracy: "
+        f"{best_accuracy:.2f}%"
+    )
 
     print("\nAll Results:")
 
     for i, result in enumerate(results, 1):
+
         print(
-            f"{i}. "
-            f"{result['architecture']} "
-            f"-> {result['accuracy']:.2f}%"
+            f"\n{i}. "
+            f"{result['architecture']}"
+        )
+
+        print(
+            f"   Accuracy: "
+            f"{result['accuracy']:.2f}%"
         )
 
 
