@@ -1,118 +1,132 @@
-
 """
-Run Reinforcement Learning based Neural Architecture Search.
+Random Search baseline for Neural Architecture Search.
 """
 
-import torch
+import random
 
-from src.reinforce import ReinforceNAS
-from src.trainer import get_cifar10_loaders
 from src.model import SearchCNN
 from src.trainer import train_model, evaluate_model
 
 
-def evaluate_architecture(
-    architecture,
-    train_loader,
-    test_loader,
-    device,
-    epochs=1,
-):
-    model = SearchCNN(
-        filters=architecture["filters"],
-        kernel_size=architecture["kernel_size"],
-        pooling=architecture["pooling"],
-        activation=architecture["activation"],
-    )
+class NeuralArchitectureSearch:
 
-    model = train_model(
-        model,
+    def __init__(
+        self,
         train_loader,
-        epochs=epochs,
-        device=device,
-    )
+        validation_loader,
+        device=None,
+    ):
 
-    accuracy = evaluate_model(
-        model,
-        test_loader,
-        device=device,
-    )
+        self.train_loader = train_loader
+        self.validation_loader = validation_loader
 
-    return accuracy
+        self.device = device
 
+        self.search_space = {
+            "filters": [16, 32, 64],
+            "kernel_size": [3, 5],
+            "pooling": ["max", "avg"],
+            "activation": ["relu", "gelu"],
+        }
 
-def main():
+    def sample_architecture(self):
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+        architecture = {
+            "filters": random.choice(
+                self.search_space["filters"]
+            ),
 
-    print("Device:", device)
+            "kernel_size": random.choice(
+                self.search_space["kernel_size"]
+            ),
 
-    train_loader, test_loader = get_cifar10_loaders(
-        batch_size=128
-    )
+            "pooling": random.choice(
+                self.search_space["pooling"]
+            ),
 
-    nas = ReinforceNAS(
-        train_loader,
-        test_loader,
-        device=device,
-    )
+            "activation": random.choice(
+                self.search_space["activation"]
+            ),
+        }
 
-    num_iterations = 5
+        return architecture
 
-    best_architecture = None
-    best_accuracy = 0.0
+    def evaluate_architecture(
+        self,
+        architecture,
+        epochs=1,
+    ):
 
-    print("\nStarting Neural Architecture Search...\n")
-
-    for iteration in range(num_iterations):
-
-        print("=" * 50)
-        print(f"Iteration {iteration + 1}/{num_iterations}")
-        print("=" * 50)
-
-        architecture, log_probability = (
-            nas.sample_architecture()
+        model = SearchCNN(
+            filters=architecture["filters"],
+            kernel_size=architecture["kernel_size"],
+            pooling=architecture["pooling"],
+            activation=architecture["activation"],
         )
 
-        print("Generated architecture:")
-        print(architecture)
-
-        accuracy = evaluate_architecture(
-            architecture,
-            train_loader,
-            test_loader,
-            device,
-            epochs=1,
+        model = train_model(
+            model,
+            self.train_loader,
+            epochs=epochs,
+            device=self.device,
         )
 
-        print(f"Validation accuracy: {accuracy:.2f}%")
-
-        # Accuracy acts as the reward
-        reward = accuracy / 100.0
-
-        loss = nas.update_controller(
-            log_probability,
-            reward,
+        accuracy = evaluate_model(
+            model,
+            self.validation_loader,
+            device=self.device,
         )
 
-        print(f"Controller loss: {loss:.4f}")
+        return accuracy
 
-        if accuracy > best_accuracy:
+    def random_search(
+        self,
+        num_architectures=5,
+        epochs=1,
+    ):
 
-            best_accuracy = accuracy
-            best_architecture = architecture
+        best_architecture = None
+        best_accuracy = 0.0
 
-            print("\nNew best architecture!")
+        results = []
 
-    print("\n" + "=" * 50)
-    print("SEARCH COMPLETE")
-    print("=" * 50)
+        for i in range(num_architectures):
 
-    print("\nBest Architecture:")
-    print(best_architecture)
+            print(
+                f"\nArchitecture "
+                f"{i + 1}/{num_architectures}"
+            )
 
-    print(f"\nBest Accuracy: {best_accuracy:.2f}%")
+            architecture = self.sample_architecture()
 
+            print(
+                "Architecture:",
+                architecture,
+            )
 
-if __name__ == "__main__":
-    main()
+            accuracy = self.evaluate_architecture(
+                architecture,
+                epochs=epochs,
+            )
+
+            print(
+                f"Validation Accuracy: "
+                f"{accuracy:.2f}%"
+            )
+
+            results.append({
+                "architecture": architecture,
+                "accuracy": accuracy,
+                "method": "Random Search",
+            })
+
+            if accuracy > best_accuracy:
+
+                best_accuracy = accuracy
+                best_architecture = architecture
+
+        return (
+            best_architecture,
+            best_accuracy,
+            results,
+        )
