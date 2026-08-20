@@ -1,23 +1,26 @@
 """
-Reinforcement Learning based Neural Architecture Search.
+Random Search baseline for Neural Architecture Search.
 """
 
 import random
-import torch
-import torch.nn.functional as F
 
 from src.model import SearchCNN
 from src.trainer import train_model, evaluate_model
 
 
 class NeuralArchitectureSearch:
-    def __init__(self, train_loader, test_loader, device=None):
-        self.train_loader = train_loader
-        self.test_loader = test_loader
 
-        self.device = device or (
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
+    def __init__(
+        self,
+        train_loader,
+        validation_loader,
+        device=None,
+    ):
+
+        self.train_loader = train_loader
+        self.validation_loader = validation_loader
+
+        self.device = device
 
         self.search_space = {
             "filters": [16, 32, 64],
@@ -27,16 +30,20 @@ class NeuralArchitectureSearch:
         }
 
     def sample_architecture(self):
-        """Generate a random candidate architecture."""
 
         architecture = {
-            "filters": random.choice(self.search_space["filters"]),
+            "filters": random.choice(
+                self.search_space["filters"]
+            ),
+
             "kernel_size": random.choice(
                 self.search_space["kernel_size"]
             ),
+
             "pooling": random.choice(
                 self.search_space["pooling"]
             ),
+
             "activation": random.choice(
                 self.search_space["activation"]
             ),
@@ -44,8 +51,11 @@ class NeuralArchitectureSearch:
 
         return architecture
 
-    def evaluate_architecture(self, architecture, epochs=1):
-        """Train and evaluate one candidate architecture."""
+    def evaluate_architecture(
+        self,
+        architecture,
+        epochs=1,
+    ):
 
         model = SearchCNN(
             filters=architecture["filters"],
@@ -63,14 +73,17 @@ class NeuralArchitectureSearch:
 
         accuracy = evaluate_model(
             model,
-            self.test_loader,
+            self.validation_loader,
             device=self.device,
         )
 
         return accuracy
 
-    def random_search(self, num_architectures=5, epochs=1):
-        """Search for the best architecture."""
+    def random_search(
+        self,
+        num_architectures=5,
+        epochs=1,
+    ):
 
         best_architecture = None
         best_accuracy = 0.0
@@ -78,26 +91,42 @@ class NeuralArchitectureSearch:
         results = []
 
         for i in range(num_architectures):
-            print(f"\nArchitecture {i + 1}/{num_architectures}")
+
+            print(
+                f"\nArchitecture "
+                f"{i + 1}/{num_architectures}"
+            )
 
             architecture = self.sample_architecture()
 
-            print("Architecture:", architecture)
+            print(
+                "Architecture:",
+                architecture,
+            )
 
             accuracy = self.evaluate_architecture(
                 architecture,
                 epochs=epochs,
             )
 
-            print(f"Accuracy: {accuracy:.2f}%")
+            print(
+                f"Validation Accuracy: "
+                f"{accuracy:.2f}%"
+            )
 
             results.append({
                 "architecture": architecture,
                 "accuracy": accuracy,
+                "method": "Random Search",
             })
 
             if accuracy > best_accuracy:
+
                 best_accuracy = accuracy
                 best_architecture = architecture
 
-        return best_architecture, best_accuracy, results
+        return (
+            best_architecture,
+            best_accuracy,
+            results,
+        )
