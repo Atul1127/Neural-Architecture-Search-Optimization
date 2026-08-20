@@ -7,6 +7,9 @@ import torch.nn as nn
 
 
 class ArchitectureController(nn.Module):
+    """
+    RNN-based controller that generates CNN architecture decisions.
+    """
 
     def __init__(self, hidden_size=64):
         super().__init__()
@@ -20,19 +23,23 @@ class ArchitectureController(nn.Module):
         )
 
         self.filters_head = nn.Linear(
-            hidden_size, 3
+            hidden_size,
+            3,
         )
 
         self.kernel_head = nn.Linear(
-            hidden_size, 2
+            hidden_size,
+            2,
         )
 
         self.pooling_head = nn.Linear(
-            hidden_size, 2
+            hidden_size,
+            2,
         )
 
         self.activation_head = nn.Linear(
-            hidden_size, 2
+            hidden_size,
+            2,
         )
 
         self.start_token = nn.Parameter(
@@ -40,6 +47,9 @@ class ArchitectureController(nn.Module):
         )
 
     def forward(self, batch_size=1):
+        """
+        Generate logits for each architecture decision.
+        """
 
         x = self.start_token.expand(
             batch_size,
