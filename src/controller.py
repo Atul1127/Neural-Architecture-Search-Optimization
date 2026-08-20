@@ -1,4 +1,3 @@
-cat > src/controller.py <<'PY'
 """
 RNN controller for generating CNN architectures.
 """
@@ -58,4 +57,3 @@ class ArchitectureController(nn.Module):
             "pooling": self.pooling_head(hidden),
             "activation": self.activation_head(hidden),
         }
-PY
