@@ -1,103 +1,61 @@
+cat > src/controller.py <<'PY'
 """
-Reinforcement Learning based Neural Architecture Search.
+RNN controller for generating CNN architectures.
 """
 
-import random
 import torch
-import torch.nn.functional as F
-
-from src.model import SearchCNN
-from src.trainer import train_model, evaluate_model
+import torch.nn as nn
 
 
-class NeuralArchitectureSearch:
-    def __init__(self, train_loader, test_loader, device=None):
-        self.train_loader = train_loader
-        self.test_loader = test_loader
+class ArchitectureController(nn.Module):
 
-        self.device = device or (
-            "cuda" if torch.cuda.is_available() else "cpu"
+    def __init__(self, hidden_size=64):
+        super().__init__()
+
+        self.hidden_size = hidden_size
+
+        self.rnn = nn.LSTM(
+            input_size=hidden_size,
+            hidden_size=hidden_size,
+            batch_first=True,
         )
 
-        self.search_space = {
-            "filters": [16, 32, 64],
-            "kernel_size": [3, 5],
-            "pooling": ["max", "avg"],
-            "activation": ["relu", "gelu"],
+        self.filters_head = nn.Linear(
+            hidden_size, 3
+        )
+
+        self.kernel_head = nn.Linear(
+            hidden_size, 2
+        )
+
+        self.pooling_head = nn.Linear(
+            hidden_size, 2
+        )
+
+        self.activation_head = nn.Linear(
+            hidden_size, 2
+        )
+
+        self.start_token = nn.Parameter(
+            torch.randn(1, 1, hidden_size)
+        )
+
+    def forward(self, batch_size=1):
+
+        x = self.start_token.expand(
+            batch_size,
+            1,
+            self.hidden_size,
+        )
+
+        outputs, _ = self.rnn(x)
+
+        hidden = outputs[:, -1, :]
+
+        return {
+            "filters": self.filters_head(hidden),
+            "kernel_size": self.kernel_head(hidden),
+            "pooling": self.pooling_head(hidden),
+            "activation": self.activation_head(hidden),
         }
-
-    def sample_architecture(self):
-        """Generate a random candidate architecture."""
-
-        architecture = {
-            "filters": random.choice(self.search_space["filters"]),
-            "kernel_size": random.choice(
-                self.search_space["kernel_size"]
-            ),
-            "pooling": random.choice(
-                self.search_space["pooling"]
-            ),
-            "activation": random.choice(
-                self.search_space["activation"]
-            ),
-        }
-
-        return architecture
-
-    def evaluate_architecture(self, architecture, epochs=1):
-        """Train and evaluate one candidate architecture."""
-
-        model = SearchCNN(
-            filters=architecture["filters"],
-            kernel_size=architecture["kernel_size"],
-            pooling=architecture["pooling"],
-            activation=architecture["activation"],
-        )
-
-        model = train_model(
-            model,
-            self.train_loader,
-            epochs=epochs,
-            device=self.device,
-        )
-
-        accuracy = evaluate_model(
-            model,
-            self.test_loader,
-            device=self.device,
-        )
-
-        return accuracy
-
-    def random_search(self, num_architectures=5, epochs=1):
-        """Search for the best architecture."""
-
-        best_architecture = None
-        best_accuracy = 0.0
-
-        results = []
-
-        for i in range(num_architectures):
-            print(f"\nArchitecture {i + 1}/{num_architectures}")
-
-            architecture = self.sample_architecture()
-
-            print("Architecture:", architecture)
-
-            accuracy = self.evaluate_architecture(
-                architecture,
-                epochs=epochs,
-            )
-
-            print(f"Accuracy: {accuracy:.2f}%")
-
-            results.append({
-                "architecture": architecture,
-                "accuracy": accuracy,
-            })
-
-            if accuracy > best_accuracy:
-                best_accuracy = accuracy
-                best_architecture = architecture
-
-        return best_architecture, best_accuracy, results
+PY
