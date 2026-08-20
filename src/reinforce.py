@@ -13,26 +13,35 @@ class ReinforceNAS:
     def __init__(
         self,
         train_loader,
-        test_loader,
+        validation_loader,
         device=None,
         learning_rate=0.001,
     ):
+
         self.train_loader = train_loader
-        self.test_loader = test_loader
+        self.validation_loader = validation_loader
 
         self.device = device or (
-            "cuda" if torch.cuda.is_available() else "cpu"
+            "cuda"
+            if torch.cuda.is_available()
+            else "cpu"
         )
 
-        self.controller = ArchitectureController().to(self.device)
+        # RNN controller
+        self.controller = ArchitectureController(
+            hidden_size=64
+        ).to(self.device)
 
+        # Optimizer for controller
         self.optimizer = optim.Adam(
             self.controller.parameters(),
             lr=learning_rate,
         )
 
+        # Moving-average reward baseline
         self.baseline = 0.0
 
+        # Architecture search space
         self.search_space = {
             "filters": [16, 32, 64],
             "kernel_size": [3, 5],
@@ -41,29 +50,67 @@ class ReinforceNAS:
         }
 
     def sample_architecture(self):
+        """
+        Generate an architecture using the RNN controller.
+
+        Returns:
+            architecture: sampled CNN architecture
+            log_probability: log probability of sampled actions
+        """
 
         outputs = self.controller()
 
         architecture = {}
-        log_probability = 0.0
+
+        total_log_probability = torch.tensor(
+            0.0,
+            device=self.device,
+        )
 
         for parameter, logits in outputs.items():
 
+            # Convert controller output into probability distribution
             distribution = torch.distributions.Categorical(
                 logits=logits
             )
 
+            # Sample one architectural decision
             action = distribution.sample()
 
-            log_probability += distribution.log_prob(action)
-
+            # Store selected architecture value
             architecture[parameter] = (
-                self.search_space[parameter][action.item()]
+                self.search_space[parameter][
+                    action.item()
+                ]
             )
 
-        return architecture, log_probability
+            # Log probability required by REINFORCE
+            total_log_probability = (
+                total_log_probability
+                + distribution.log_prob(action)
+            )
 
-    def update_controller(self, log_probability, reward):
+        return (
+            architecture,
+            total_log_probability,
+        )
+
+    def update_controller(
+        self,
+        log_probability,
+        reward,
+    ):
+        """
+        Update the controller using REINFORCE.
+
+        REINFORCE objective:
+
+            Loss = -log(pi(a|s)) * advantage
+
+        where:
+
+            advantage = reward - baseline
+        """
 
         reward_tensor = torch.tensor(
             reward,
@@ -71,16 +118,26 @@ class ReinforceNAS:
             device=self.device,
         )
 
-        # Moving baseline reduces variance
+        # Update moving-average reward baseline
         self.baseline = (
-            0.9 * self.baseline +
-            0.1 * reward
+            0.9 * self.baseline
+            + 0.1 * reward
         )
 
-        advantage = reward_tensor - self.baseline
+        # Advantage tells us whether this architecture
+        # performed better or worse than expected.
+        advantage = (
+            reward_tensor
+            - self.baseline
+        )
 
-        loss = -log_probability * advantage
+        # Policy-gradient loss
+        loss = (
+            -log_probability
+            * advantage
+        )
 
+        # Update controller
         self.optimizer.zero_grad()
 
         loss.backward()
