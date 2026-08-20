@@ -1,2 +1,30 @@
-# Neural_Architecture_Search
-This repo contain the code of Neural Architecture Search which i have implemented from scratch in pytorch. I have used RNN model for searching the best suitable architecture for a cnn model which is used to make a classifer which classify our standard mnist dataset. The heart of this model is the RL reinforce algo, which help in the learning of the parameters of our RNN model so that it predict the best architecture for our cnn model by using reward and punishment strategy.
+# Neural Architecture Search & Optimization
+
+An end-to-end Neural Architecture Search (NAS) system that uses an RNN controller and REINFORCE to automatically generate and evaluate CNN architectures on CIFAR-10.
+
+The project also includes a Random Search baseline to compare learned architecture search against a simple non-learning strategy.
+
+---
+
+## Overview
+
+Designing neural network architectures manually can require significant experimentation.
+
+This project explores automated architecture design using Reinforcement Learning.
+
+The system works as follows:
+
+```text
+RNN Controller
+      ↓
+Generate CNN Architecture
+      ↓
+Train Candidate Model
+      ↓
+Evaluate on Validation Set
+      ↓
+Validation Accuracy → Reward
+      ↓
+REINFORCE Update
+      ↓
+Generate Next Architecture
