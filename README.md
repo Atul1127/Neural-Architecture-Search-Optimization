@@ -256,7 +256,6 @@ Neural-Architecture-Search-Optimization/
 ├── search.py               # RL-based NAS experiment
 ├── baseline.py             # Random Search baseline
 ├── final_train.py          # Final architecture training
-├── test_model.py           # Model evaluation
 ├── requirements.txt        # Python dependencies
 ├── .gitignore
 └── README.md
