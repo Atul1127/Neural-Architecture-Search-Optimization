@@ -1,8 +1,8 @@
 """
 Random Search baseline for Neural Architecture Search.
 
-Uses the same 20-architecture budget and efficiency-aware
-reward as RL-NAS for a fair comparison.
+Uses the same search budget and efficiency-aware reward
+as RL-NAS for a fair comparison.
 """
 
 import random
@@ -15,7 +15,7 @@ from src.trainer import (
     train_model,
     evaluate_model,
 )
-from src.results import save_result
+from src.results import save_results
 
 
 # ---------------------------------------------------------
@@ -56,9 +56,7 @@ def calculate_reward(
     parameter_count,
     max_parameters=300000,
 ):
-    """
-    Same efficiency-aware reward used by RL-NAS.
-    """
+    """Calculate the efficiency-aware reward."""
 
     accuracy_score = accuracy / 100.0
 
@@ -117,7 +115,6 @@ def random_search(
 
         print("=" * 60)
 
-        # Random architecture
         architecture = sample_random_architecture(
             search_space
         )
@@ -127,7 +124,6 @@ def random_search(
         for key, value in architecture.items():
             print(f"  {key}: {value}")
 
-        # Build model
         model = SearchCNN(
             filters=architecture["filters"],
             kernel_size=architecture["kernel_size"],
@@ -135,10 +131,8 @@ def random_search(
             activation=architecture["activation"],
         )
 
-        # Parameter count
         parameter_count = count_parameters(model)
 
-        # Train
         model = train_model(
             model,
             train_loader,
@@ -146,14 +140,12 @@ def random_search(
             device=device,
         )
 
-        # Validation
         accuracy = evaluate_model(
             model,
             validation_loader,
             device=device,
         )
 
-        # Efficiency-aware reward
         reward = calculate_reward(
             accuracy,
             parameter_count,
@@ -174,8 +166,8 @@ def random_search(
             f"{reward:.4f}"
         )
 
-        # Store result
         result = {
+            "method": "Random Search",
             "iteration": iteration + 1,
             "architecture": architecture,
             "accuracy": accuracy,
@@ -185,16 +177,6 @@ def random_search(
 
         results.append(result)
 
-        save_result(
-            method="Random Search",
-            iteration=iteration + 1,
-            architecture=architecture,
-            accuracy=accuracy,
-            parameters=parameter_count,
-            reward=reward,
-        )
-
-        # Track best architecture
         if reward > best_reward:
 
             best_reward = reward
@@ -251,7 +233,6 @@ def main():
 
     print("CIFAR-10 loaded.")
 
-    # Load existing search space
     search_space = get_search_space()
 
     print("\nSearch Space:")
@@ -270,6 +251,12 @@ def main():
         train_loader,
         validation_loader,
         device,
+    )
+
+    # Save all results after the search completes.
+    save_results(
+        results,
+        filename="random_search.csv",
     )
 
     print("\n" + "=" * 60)
@@ -294,6 +281,11 @@ def main():
     print(
         f"Best Efficiency Reward: "
         f"{best_reward:.4f}"
+    )
+
+    print(
+        "\nResults saved to "
+        "results/random_search.csv"
     )
 
 
