@@ -23,7 +23,7 @@ from src.results import save_results
 # ---------------------------------------------------------
 
 SEARCH_ITERATIONS = 20
-CANDIDATE_EPOCHS = 1
+CANDIDATE_EPOCHS = 3
 
 PARAMETER_PENALTY = 0.10
 
