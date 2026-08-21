@@ -1,19 +1,21 @@
 """
 Random Search baseline for Neural Architecture Search.
 
-The baseline uses the same search budget as RL-NAS so that
-the comparison is fair.
+Uses the same 20-architecture budget and efficiency-aware
+reward as RL-NAS for a fair comparison.
 """
 
+import random
 import torch
 
-from src.search_space import SearchSpace
+from src.search_space import get_search_space
 from src.model import SearchCNN
 from src.trainer import (
     get_cifar10_loaders,
     train_model,
     evaluate_model,
 )
+from src.results import save_result
 
 
 # ---------------------------------------------------------
@@ -23,10 +25,21 @@ from src.trainer import (
 SEARCH_ITERATIONS = 20
 CANDIDATE_EPOCHS = 1
 
+PARAMETER_PENALTY = 0.10
+
 
 # ---------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------
+
+def sample_random_architecture(search_space):
+    """Randomly sample one architecture."""
+
+    return {
+        key: random.choice(values)
+        for key, values in search_space.items()
+    }
+
 
 def count_parameters(model):
     """Return the number of trainable parameters."""
@@ -42,14 +55,9 @@ def calculate_reward(
     accuracy,
     parameter_count,
     max_parameters=300000,
-    parameter_penalty=0.10,
 ):
     """
-    Calculate the same efficiency-aware reward used by RL-NAS.
-
-    Reward =
-        normalized accuracy
-        - parameter efficiency penalty
+    Same efficiency-aware reward used by RL-NAS.
     """
 
     accuracy_score = accuracy / 100.0
@@ -59,12 +67,10 @@ def calculate_reward(
         1.0,
     )
 
-    reward = (
+    return (
         accuracy_score
-        - parameter_penalty * parameter_ratio
+        - PARAMETER_PENALTY * parameter_ratio
     )
-
-    return reward
 
 
 # ---------------------------------------------------------
@@ -77,16 +83,12 @@ def random_search(
     validation_loader,
     device,
 ):
-    """
-    Perform random architecture search.
-
-    The search budget is intentionally identical to RL-NAS.
-    """
+    """Run random architecture search."""
 
     best_architecture = None
     best_accuracy = 0.0
-    best_reward = float("-inf")
     best_parameters = 0
+    best_reward = float("-inf")
 
     results = []
 
@@ -99,24 +101,33 @@ def random_search(
         f"{SEARCH_ITERATIONS} architectures"
     )
 
+    print(
+        f"Parameter penalty: "
+        f"{PARAMETER_PENALTY}"
+    )
+
     for iteration in range(SEARCH_ITERATIONS):
 
-        print("\n" + "-" * 60)
+        print("\n" + "=" * 60)
 
         print(
             f"Iteration "
             f"{iteration + 1}/{SEARCH_ITERATIONS}"
         )
 
-        # Randomly sample an architecture
-        architecture = search_space.sample()
+        print("=" * 60)
 
-        print("\nArchitecture:")
+        # Random architecture
+        architecture = sample_random_architecture(
+            search_space
+        )
+
+        print("\nGenerated Architecture:")
 
         for key, value in architecture.items():
             print(f"  {key}: {value}")
 
-        # Create model
+        # Build model
         model = SearchCNN(
             filters=architecture["filters"],
             kernel_size=architecture["kernel_size"],
@@ -124,10 +135,10 @@ def random_search(
             activation=architecture["activation"],
         )
 
-        # Count parameters BEFORE training
+        # Parameter count
         parameter_count = count_parameters(model)
 
-        # Train candidate
+        # Train
         model = train_model(
             model,
             train_loader,
@@ -135,14 +146,14 @@ def random_search(
             device=device,
         )
 
-        # Validation performance
+        # Validation
         accuracy = evaluate_model(
             model,
             validation_loader,
             device=device,
         )
 
-        # Same reward function as RL-NAS
+        # Efficiency-aware reward
         reward = calculate_reward(
             accuracy,
             parameter_count,
@@ -159,10 +170,11 @@ def random_search(
         )
 
         print(
-            f"Efficiency Reward: "
+            f"Reward: "
             f"{reward:.4f}"
         )
 
+        # Store result
         result = {
             "iteration": iteration + 1,
             "architecture": architecture,
@@ -173,8 +185,16 @@ def random_search(
 
         results.append(result)
 
-        # Best architecture is selected using the SAME
-        # efficiency-aware objective as RL-NAS.
+        save_result(
+            method="Random Search",
+            iteration=iteration + 1,
+            architecture=architecture,
+            accuracy=accuracy,
+            parameters=parameter_count,
+            reward=reward,
+        )
+
+        # Track best architecture
         if reward > best_reward:
 
             best_reward = reward
@@ -219,7 +239,6 @@ def main():
             f"{torch.cuda.get_device_name(0)}"
         )
 
-    # Load CIFAR-10
     print("\nLoading CIFAR-10...")
 
     (
@@ -232,8 +251,13 @@ def main():
 
     print("CIFAR-10 loaded.")
 
-    # Search space
-    search_space = SearchSpace()
+    # Load existing search space
+    search_space = get_search_space()
+
+    print("\nSearch Space:")
+
+    for key, values in search_space.items():
+        print(f"  {key}: {values}")
 
     (
         best_architecture,
@@ -247,10 +271,6 @@ def main():
         validation_loader,
         device,
     )
-
-    # -----------------------------------------------------
-    # Final result
-    # -----------------------------------------------------
 
     print("\n" + "=" * 60)
     print("RANDOM SEARCH COMPLETE")
