@@ -13,6 +13,24 @@ from src.trainer import (
 from src.model import SearchCNN
 
 
+# Search configuration
+SEARCH_ITERATIONS = 20
+CANDIDATE_EPOCHS = 1
+
+# Weight for parameter efficiency.
+# Higher = stronger preference for smaller models.
+PARAMETER_PENALTY = 0.10
+
+
+def count_parameters(model):
+    """Return the number of trainable parameters."""
+    return sum(
+        parameter.numel()
+        for parameter in model.parameters()
+        if parameter.requires_grad
+    )
+
+
 def evaluate_architecture(
     architecture,
     train_loader,
@@ -22,6 +40,10 @@ def evaluate_architecture(
 ):
     """
     Train and evaluate one candidate architecture.
+
+    Returns:
+        accuracy: validation accuracy in percentage
+        parameter_count: number of trainable parameters
     """
 
     model = SearchCNN(
@@ -30,6 +52,8 @@ def evaluate_architecture(
         pooling=architecture["pooling"],
         activation=architecture["activation"],
     )
+
+    parameter_count = count_parameters(model)
 
     model = train_model(
         model,
@@ -44,7 +68,34 @@ def evaluate_architecture(
         device=device,
     )
 
-    return accuracy
+    return accuracy, parameter_count
+
+
+def calculate_reward(
+    accuracy,
+    parameter_count,
+    max_parameters=300000,
+):
+    """
+    Calculate accuracy-efficiency reward.
+
+    Reward combines validation accuracy with a penalty
+    for larger architectures.
+    """
+
+    accuracy_score = accuracy / 100.0
+
+    parameter_ratio = min(
+        parameter_count / max_parameters,
+        1.0,
+    )
+
+    reward = (
+        accuracy_score
+        - PARAMETER_PENALTY * parameter_ratio
+    )
+
+    return reward
 
 
 def main():
@@ -87,20 +138,32 @@ def main():
         device=device,
     )
 
-    num_iterations = 5
-
     best_architecture = None
     best_accuracy = 0.0
+    best_reward = float("-inf")
+    best_parameters = 0
+
+    print(
+        f"\nSearch budget: "
+        f"{SEARCH_ITERATIONS} architectures"
+    )
+
+    print(
+        f"Parameter penalty: "
+        f"{PARAMETER_PENALTY}"
+    )
 
     print("\nStarting search...\n")
 
-    for iteration in range(num_iterations):
+    for iteration in range(SEARCH_ITERATIONS):
 
         print("=" * 60)
+
         print(
             f"Iteration "
-            f"{iteration + 1}/{num_iterations}"
+            f"{iteration + 1}/{SEARCH_ITERATIONS}"
         )
+
         print("=" * 60)
 
         # Controller generates an architecture
@@ -114,13 +177,22 @@ def main():
         for key, value in architecture.items():
             print(f"  {key}: {value}")
 
-        # Train candidate and evaluate on validation set
-        accuracy = evaluate_architecture(
+        # Train candidate and evaluate
+        (
+            accuracy,
+            parameter_count,
+        ) = evaluate_architecture(
             architecture,
             train_loader,
             validation_loader,
             device,
-            epochs=1,
+            epochs=CANDIDATE_EPOCHS,
+        )
+
+        # Calculate efficiency-aware reward
+        reward = calculate_reward(
+            accuracy,
+            parameter_count,
         )
 
         print(
@@ -128,8 +200,15 @@ def main():
             f"{accuracy:.2f}%"
         )
 
-        # Normalize accuracy to [0, 1]
-        reward = accuracy / 100.0
+        print(
+            f"Trainable Parameters: "
+            f"{parameter_count:,}"
+        )
+
+        print(
+            f"Reward: "
+            f"{reward:.4f}"
+        )
 
         # Update controller using REINFORCE
         loss = nas.update_controller(
@@ -142,11 +221,13 @@ def main():
             f"{loss:.4f}"
         )
 
-        # Track best architecture
-        if accuracy > best_accuracy:
+        # Track architecture based on reward
+        if reward > best_reward:
 
+            best_reward = reward
             best_accuracy = accuracy
-            best_architecture = architecture
+            best_parameters = parameter_count
+            best_architecture = architecture.copy()
 
             print(
                 "\nNew Best Architecture!"
@@ -164,6 +245,16 @@ def main():
     print(
         f"\nBest Validation Accuracy: "
         f"{best_accuracy:.2f}%"
+    )
+
+    print(
+        f"Best Parameter Count: "
+        f"{best_parameters:,}"
+    )
+
+    print(
+        f"Best Efficiency Reward: "
+        f"{best_reward:.4f}"
     )
 
 
