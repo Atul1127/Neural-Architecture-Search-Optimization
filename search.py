@@ -15,7 +15,7 @@ from src.model import SearchCNN
 
 # Search configuration
 SEARCH_ITERATIONS = 20
-CANDIDATE_EPOCHS = 1
+CANDIDATE_EPOCHS = 3
 
 # Weight for parameter efficiency.
 # Higher = stronger preference for smaller models.
