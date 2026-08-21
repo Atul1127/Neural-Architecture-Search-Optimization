@@ -1,8 +1,9 @@
+
 # Neural Architecture Search & Optimization
 
 An end-to-end **Reinforcement Learning-based Neural Architecture Search (NAS)** system that uses an **LSTM controller and REINFORCE** to automatically discover CNN architectures for CIFAR-10.
 
-The project compares learned architecture search against a **Random Search baseline** under the same search budget and optimizes for both validation performance and model efficiency.
+The project compares learned architecture search against a **Random Search baseline** under the same search budget while optimizing for both validation performance and model efficiency.
 
 ---
 
@@ -38,9 +39,9 @@ Instead of manually designing CNN architectures, the system learns to generate p
              Update Controller
                        │
                        └──────────► Next Architecture
-```
+````
 
-After architecture search, the selected architecture can be trained separately and evaluated on the held-out CIFAR-10 test set.
+After architecture search, the selected architecture is retrained from scratch and evaluated on the held-out CIFAR-10 test set.
 
 ---
 
@@ -56,7 +57,7 @@ After architecture search, the selected architecture can be trained separately a
 * Train / validation / test separation
 * GPU acceleration with PyTorch
 * Modular implementation
-* Separate final architecture training and testing
+* Separate architecture search and final evaluation
 
 ---
 
@@ -116,7 +117,7 @@ For each sampled architecture:
 1. A CNN is constructed.
 2. The candidate is trained on the training set.
 3. Validation accuracy is measured.
-4. The architecture's parameter count is measured.
+4. Trainable parameter count is measured.
 5. An efficiency-aware reward is calculated.
 6. REINFORCE updates the controller.
 
@@ -132,7 +133,7 @@ Reward =
 
 where `λ` controls the importance of model compactness.
 
-This allows the search to prefer architectures that provide a useful balance between predictive performance and model size.
+This allows the search to consider both predictive performance and model size.
 
 ---
 
@@ -141,11 +142,12 @@ This allows the search to prefer architectures that provide a useful balance bet
 The current experiment evaluates:
 
 ```text
-Search budget:       20 architectures
-Candidate training:  3 epochs
+Search Budget:       20 architectures
+Candidate Training:  3 epochs
+Parameter Penalty:   0.1
 ```
 
-Both RL-NAS and Random Search use the same budget and candidate-training configuration.
+Both RL-NAS and Random Search use the same search budget and candidate-training configuration.
 
 ---
 
@@ -153,9 +155,9 @@ Both RL-NAS and Random Search use the same budget and candidate-training configu
 
 ## RL-Based NAS
 
-The RL controller searched 20 candidate architectures using REINFORCE.
+The RL controller searched 20 candidate architectures using an LSTM controller and REINFORCE.
 
-### Best discovered architecture
+### Best Discovered Architecture
 
 ```text
 Filters:       32
@@ -164,7 +166,7 @@ Pooling:       Average Pooling
 Activation:    GELU
 ```
 
-### Result
+### Search Result
 
 ```text
 Validation Accuracy: 52.08%
@@ -178,7 +180,7 @@ Reward:              0.5026
 
 Random Search independently evaluated 20 candidate architectures using the same training budget and efficiency-aware objective.
 
-### Best discovered architecture
+### Best Discovered Architecture
 
 ```text
 Filters:       64
@@ -187,7 +189,7 @@ Pooling:       Max Pooling
 Activation:    GELU
 ```
 
-### Result
+### Search Result
 
 ```text
 Validation Accuracy: 54.38%
@@ -209,30 +211,58 @@ Reward:              0.5180
 
 ### Interpretation
 
-Random Search achieved the highest validation accuracy and reward in the current experiment.
+Random Search achieved the highest validation accuracy and reward in the current search experiment.
 
-However, RL-NAS discovered a competitive architecture using approximately **29.5% fewer parameters** than the best Random Search architecture.
+However, RL-NAS discovered a competitive architecture with approximately **29.5% fewer trainable parameters** than the best Random Search architecture.
 
-This demonstrates the trade-off between predictive performance and model efficiency rather than claiming that reinforcement learning always outperforms random search.
+The experiment therefore demonstrates the trade-off between predictive performance and model efficiency rather than claiming that reinforcement learning always outperforms random search.
 
 ---
 
-## Final Evaluation
+# Final Evaluation
 
-Architecture search uses only the training and validation data.
+After architecture search, the best RL-NAS architecture was selected and retrained from scratch using a larger training budget.
 
-The CIFAR-10 test set is reserved for final evaluation after architecture selection.
+The CIFAR-10 test set was kept separate from architecture selection and used only for final evaluation.
 
-The final evaluation workflow is:
+### Selected Architecture
+
+```text
+Filters:       32
+Kernel Size:   5×5
+Pooling:       Average Pooling
+Activation:    GELU
+Parameters:    54,538
+```
+
+### Final Training
+
+```text
+Training Epochs: 10
+```
+
+### Final Results
+
+```text
+Validation Accuracy: 62.28%
+Test Accuracy:       61.90%
+Trainable Parameters: 54,538
+```
+
+The final test accuracy of **61.90%** was obtained on the held-out CIFAR-10 test set after the architecture had already been selected using the training/validation data.
+
+### Evaluation Workflow
 
 ```text
 Architecture Search
         ↓
-Select Candidate
+Select RL-NAS Architecture
         ↓
-Train Selected Architecture
+Retrain From Scratch
         ↓
-Evaluate on Held-Out Test Set
+Validation Evaluation
+        ↓
+Held-Out Test Evaluation
 ```
 
 This prevents the test set from influencing architecture selection.
@@ -255,7 +285,7 @@ Neural-Architecture-Search-Optimization/
 │
 ├── search.py               # RL-based NAS experiment
 ├── baseline.py             # Random Search baseline
-├── final_train.py          # Final architecture training
+├── final_train.py          # Final architecture training/evaluation
 ├── requirements.txt        # Python dependencies
 ├── .gitignore
 └── README.md
@@ -296,16 +326,10 @@ python search.py
 python baseline.py
 ```
 
-### Train the Selected Architecture
+### Train and Evaluate the Selected Architecture
 
 ```bash
 python final_train.py
-```
-
-### Evaluate the Model
-
-```bash
-python test_model.py
 ```
 
 ---
@@ -327,3 +351,4 @@ python test_model.py
 ## Project Goal
 
 The goal of this project is to demonstrate how reinforcement learning can be applied to **automated neural network architecture design**, while explicitly considering the trade-off between model performance and model efficiency.
+
