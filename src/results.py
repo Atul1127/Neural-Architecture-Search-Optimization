@@ -1,62 +1,45 @@
-"""
-Utilities for saving NAS experiment results.
-"""
+"""Utilities for persisting NAS experiment results."""
 
 import csv
-import os
+from pathlib import Path
+
+from src.config import RESULTS_DIR
 
 
 def save_results(results, filename="results.csv"):
-    """
-    Save NAS experiment results to a CSV file.
+    """Save architecture-search results to a CSV file."""
+    output_dir = Path(RESULTS_DIR)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filepath = output_dir / filename
 
-    Each result contains:
-        method
-        architecture
-        accuracy
-        parameters
-        reward
-    """
+    fieldnames = [
+        "method",
+        "iteration",
+        "filters",
+        "kernel_size",
+        "pooling",
+        "activation",
+        "accuracy",
+        "parameters",
+        "reward",
+    ]
 
-    os.makedirs("results", exist_ok=True)
-
-    filepath = os.path.join("results", filename)
-
-    with open(
-        filepath,
-        "w",
-        newline="",
-        encoding="utf-8",
-    ) as file:
-
-        writer = csv.writer(file)
-
-        writer.writerow([
-            "method",
-            "iteration",
-            "filters",
-            "kernel_size",
-            "pooling",
-            "activation",
-            "accuracy",
-            "parameters",
-            "reward",
-        ])
+    with filepath.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
 
         for result in results:
-
             architecture = result["architecture"]
-
-            writer.writerow([
-                result["method"],
-                result["iteration"],
-                architecture["filters"],
-                architecture["kernel_size"],
-                architecture["pooling"],
-                architecture["activation"],
-                round(result["accuracy"], 4),
-                result["parameters"],
-                round(result["reward"], 6),
-            ])
+            writer.writerow({
+                "method": result["method"],
+                "iteration": result["iteration"],
+                "filters": architecture["filters"],
+                "kernel_size": architecture["kernel_size"],
+                "pooling": architecture["pooling"],
+                "activation": architecture["activation"],
+                "accuracy": round(result["accuracy"], 4),
+                "parameters": result["parameters"],
+                "reward": round(result["reward"], 6),
+            })
 
     print(f"Results saved to {filepath}")
