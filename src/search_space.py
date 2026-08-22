@@ -1,6 +1,4 @@
-"""
-Search space for CNN architectures.
-"""
+"""Definition of the CNN architecture search space."""
 
 SEARCH_SPACE = {
     "filters": [16, 32, 64],
@@ -11,4 +9,5 @@ SEARCH_SPACE = {
 
 
 def get_search_space():
-    return SEARCH_SPACE
+    """Return a copy so callers cannot mutate global configuration."""
+    return {key: values.copy() for key, values in SEARCH_SPACE.items()}
