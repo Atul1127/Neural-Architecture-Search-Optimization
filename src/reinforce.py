@@ -1,147 +1,47 @@
-"""
-REINFORCE-based Neural Architecture Search.
-"""
+"""REINFORCE controller for neural architecture search."""
 
 import torch
 import torch.optim as optim
 
 from src.controller import ArchitectureController
+from src.search_space import get_search_space
 
 
 class ReinforceNAS:
+    """Sample CNN architectures and optimize the controller policy."""
 
-    def __init__(
-        self,
-        train_loader,
-        validation_loader,
-        device=None,
-        learning_rate=0.001,
-    ):
-
+    def __init__(self, train_loader, validation_loader, device=None, learning_rate=1e-3):
         self.train_loader = train_loader
         self.validation_loader = validation_loader
-
-        self.device = device or (
-            "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
-        )
-
-        # RNN controller
-        self.controller = ArchitectureController(
-            hidden_size=64
-        ).to(self.device)
-
-        # Optimizer for controller
-        self.optimizer = optim.Adam(
-            self.controller.parameters(),
-            lr=learning_rate,
-        )
-
-        # Moving-average reward baseline
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.controller = ArchitectureController(hidden_size=64).to(self.device)
+        self.optimizer = optim.Adam(self.controller.parameters(), lr=learning_rate)
         self.baseline = 0.0
-
-        # Architecture search space
-        self.search_space = {
-            "filters": [16, 32, 64],
-            "kernel_size": [3, 5],
-            "pooling": ["max", "avg"],
-            "activation": ["relu", "gelu"],
-        }
+        self.search_space = get_search_space()
 
     def sample_architecture(self):
-        """
-        Generate an architecture using the RNN controller.
-
-        Returns:
-            architecture: sampled CNN architecture
-            log_probability: log probability of sampled actions
-        """
-
+        """Sample an architecture and return its summed log probability."""
         outputs = self.controller()
-
         architecture = {}
-
-        total_log_probability = torch.tensor(
-            0.0,
-            device=self.device,
-        )
+        log_probability = torch.tensor(0.0, device=self.device)
 
         for parameter, logits in outputs.items():
-
-            # Convert controller output into probability distribution
-            distribution = torch.distributions.Categorical(
-                logits=logits
-            )
-
-            # Sample one architectural decision
+            distribution = torch.distributions.Categorical(logits=logits)
             action = distribution.sample()
+            architecture[parameter] = self.search_space[parameter][action.item()]
+            log_probability = log_probability + distribution.log_prob(action)
 
-            # Store selected architecture value
-            architecture[parameter] = (
-                self.search_space[parameter][
-                    action.item()
-                ]
-            )
+        return architecture, log_probability
 
-            # Log probability required by REINFORCE
-            total_log_probability = (
-                total_log_probability
-                + distribution.log_prob(action)
-            )
+    def update_controller(self, log_probability, reward):
+        """Apply one REINFORCE update using a moving-average baseline."""
+        reward_tensor = torch.tensor(reward, dtype=torch.float32, device=self.device)
+        self.baseline = 0.9 * self.baseline + 0.1 * reward
+        advantage = reward_tensor - self.baseline
+        loss = -log_probability * advantage
 
-        return (
-            architecture,
-            total_log_probability,
-        )
-
-    def update_controller(
-        self,
-        log_probability,
-        reward,
-    ):
-        """
-        Update the controller using REINFORCE.
-
-        REINFORCE objective:
-
-            Loss = -log(pi(a|s)) * advantage
-
-        where:
-
-            advantage = reward - baseline
-        """
-
-        reward_tensor = torch.tensor(
-            reward,
-            dtype=torch.float32,
-            device=self.device,
-        )
-
-        # Update moving-average reward baseline
-        self.baseline = (
-            0.9 * self.baseline
-            + 0.1 * reward
-        )
-
-        # Advantage tells us whether this architecture
-        # performed better or worse than expected.
-        advantage = (
-            reward_tensor
-            - self.baseline
-        )
-
-        # Policy-gradient loss
-        loss = (
-            -log_probability
-            * advantage
-        )
-
-        # Update controller
         self.optimizer.zero_grad()
-
         loss.backward()
-
         self.optimizer.step()
 
         return loss.item()
